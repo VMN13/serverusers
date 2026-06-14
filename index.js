@@ -30,7 +30,7 @@ app.get('/', (req, res) => {
 });
 
 const JWT_SECRET = process.env.JWT_SECRET || 'my_secret_key_123';
-const baseUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+const baseUrl = process.env.FRONTEND_URL || 'https://the-fksvfnpr2-vmn13s-projects.vercel.app';
 
 // note: Настройка nodemailer для отправки email
 const transporter = nodemailer.createTransport({
