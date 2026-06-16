@@ -3,19 +3,21 @@ const cors = require('cors');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const nodemailer = require('nodemailer');
-require('dotenv').config(); 
+require('dotenv').config({ path: '.env.local' });
 const db = require('./db');
 const { requireAuth } = require('./middleware');
 
 const app = express();
 app.locals.db = db;
 
-app.use(cors());
+app.use(cors({
+    origin: true,
+    credentials: true
+}));
 app.use(express.json());
 
 // basic security headers for backend responses
 app.use((req, res, next) => {
-    res.setHeader('Content-Security-Policy', "default-src 'none'; connect-src 'self'");
     res.setHeader('X-Content-Type-Options', 'nosniff');
     next();
 });
@@ -31,6 +33,27 @@ app.get('/', (req, res) => {
 
 const JWT_SECRET = process.env.JWT_SECRET || 'my_secret_key_123';
 const baseUrl = process.env.FRONTEND_URL || 'https://the-app-pi.vercel.app';
+
+// note: Создание таблиц при первом запуске
+async function initDatabase() {
+    try {
+        await db.execute(`
+            CREATE TABLE IF NOT EXISTS users (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                name VARCHAR(255) NOT NULL,
+                email VARCHAR(255) NOT NULL,
+                password VARCHAR(255) NOT NULL,
+                status VARCHAR(50) DEFAULT 'unverified',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                last_login TIMESTAMP NULL,
+                UNIQUE KEY idx_users_email_unique (email)
+            )
+        `);
+        console.log('[DB] Таблицы готовы');
+    } catch (err) {
+        console.error('[DB] Ошибка инициализации:', err.message);
+    }
+}
 
 // note: Настройка nodemailer для отправки email
 const transporter = nodemailer.createTransport({
@@ -135,7 +158,7 @@ app.get('/api/verify-email', async (req, res) => {
             "UPDATE users SET status = 'active' WHERE id = ? AND status != 'blocked'",
             [id]
         );
-        res.redirect(`${baseUrl}/login?verified=true`);
+res.redirect(`${baseUrl}/#/login?verified=true`);
     } catch (err) {
         res.status(500).send('Ошибка подтверждения email');
     }
@@ -211,4 +234,7 @@ app.use((req, res) => {
     res.status(404).json({ error: 'Маршрут не найден' });
 });
 
-app.listen(3001, () => console.log('Сервер запущен на порту 3001'));
+app.listen(3001, async () => {
+    console.log('Сервер запущен на порту 3001');
+    await initDatabase();
+});
