@@ -1,0 +1,4 @@
+- [x] Remove comments from index.js
+- [x] Remove comments from middleware.js
+- [x] Remove comments from db.js
+- [x] Mark all tasks completed

@@ -16,13 +16,11 @@ app.use(cors({
 }));
 app.use(express.json());
 
-// basic security headers for backend responses
 app.use((req, res, next) => {
     res.setHeader('X-Content-Type-Options', 'nosniff');
     next();
 });
 
-// explicit handler to avoid noisy .well-known request errors in devtools/extensions
 app.get('/.well-known/appspecific/com.chrome.devtools.json', (req, res) => {
     res.status(204).end();
 });
@@ -34,7 +32,6 @@ app.get('/', (req, res) => {
 const JWT_SECRET = process.env.JWT_SECRET || 'my_secret_key_123';
 const baseUrl = process.env.FRONTEND_URL || 'https://the-app-pi.vercel.app';
 
-// note: Создание таблиц при первом запуске
 async function initDatabase() {
     try {
         await db.execute(`
@@ -55,7 +52,6 @@ async function initDatabase() {
     }
 }
 
-// note: Настройка nodemailer для отправки email
 const transporter = nodemailer.createTransport({
     service: 'gmail',
     auth: { 
@@ -64,21 +60,13 @@ const transporter = nodemailer.createTransport({
     }
 });
 
-/**
- * POST /api/register
- * important: Регистрация нового пользователя
- * note: Пароль хешируется перед сохранением
- * nota bene: Уникальный индекс в БД гарантирует уникальность email
- */
 app.post('/api/register', async (req, res) => {
     const { name, email, password } = req.body;
     
-    // important: Валидация полей
     if (!name || !email || !password) {
         return res.status(400).json({ error: 'Все поля обязательны' });
     }
 
-    // note: Хеширование пароля
     const hashedPassword = await bcrypt.hash(password, 10);
 
     try {
@@ -87,10 +75,8 @@ app.post('/api/register', async (req, res) => {
             [name, email, hashedPassword, 'unverified']
         );
         
-        // note: Формирование ссылки для подтверждения
         const verifyUrl = `${baseUrl}/verify-email?id=${result.insertId}`;
         
-        // note: Асинхронная отправка email (не блокирует ответ)
         if (process.env.EMAIL_USER) {
             transporter.sendMail({
                 to: email,
@@ -101,10 +87,8 @@ app.post('/api/register', async (req, res) => {
             console.log(`[MOCK EMAIL] Кому: ${email}. Ссылка: ${verifyUrl}`);
         }
 
-        // note: Пользователь зарегистрирован сразу
         res.status(201).json({ message: 'Пользователь успешно зарегистрирован.' });
     } catch (err) {
-        // important: Обработка дубликата email (уникальный индекс)
         if (err.code === 'ER_DUP_ENTRY') { 
             return res.status(400).json({ error: 'Email уже существует.' });
         }
@@ -113,11 +97,6 @@ app.post('/api/register', async (req, res) => {
     }
 });
 
-/**
- * POST /api/login
- * note: Аутентификация пользователя
- * important: Блокированные пользователи не могут войти
- */
 app.post('/api/login', async (req, res) => {
     const { email, password } = req.body;
     
@@ -127,7 +106,6 @@ app.post('/api/login', async (req, res) => {
 
         if (!user) return res.status(400).json({ error: 'Неверные учетные данные' });
 
-        // important: Проверка статуса перед входом
         if (user.status === 'blocked') {
             return res.status(403).json({ error: 'Аккаунт заблокирован.' });
         }
@@ -135,7 +113,6 @@ app.post('/api/login', async (req, res) => {
         const isValid = await bcrypt.compare(password, user.password);
         if (!isValid) return res.status(400).json({ error: 'Неверные учетные данные' });
 
-        // note: Обновление времени последнего входа
         await db.execute('UPDATE users SET last_login = NOW() WHERE id = ?', [user.id]);
 
         const token = jwt.sign({ id: user.id }, JWT_SECRET, { expiresIn: '1h' });
@@ -146,11 +123,6 @@ app.post('/api/login', async (req, res) => {
     }
 });
 
-/**
- * GET /api/verify-email
- * note: Подтверждение email пользователя
- * important: Заблокированные пользователи остаются заблокированными
- */
 app.get('/api/verify-email', async (req, res) => {
     const { id } = req.query;
     try {
@@ -164,12 +136,6 @@ res.redirect(`${baseUrl}/#/login?verified=true`);
     }
 });
 
-/**
- * GET /api/users
- * note: Получение списка пользователей
- * important: requireAuth проверяет blocked/deleted статус
- * nota bene: Сортировка по last_login DESC
- */
 app.get('/api/users', requireAuth, async (req, res) => {
     try {
         const [rows] = await db.execute(
